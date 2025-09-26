@@ -11,7 +11,7 @@ setup(
     author_email='guillemtorrente@hotmail.com',
 
     packages=find_packages(exclude=[]),
-    python_requires='==3.6',
+    python_requires='==3.8.10',
     install_requires=[
         'numpy==1.19.0',
         'scipy==1.5.0',
