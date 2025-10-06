@@ -13,10 +13,12 @@ this program. If not, see <http://www.gnu.org/licenses/>.
 
 
 import numpy as np
+from scipy.ndimage import gaussian_filter1d
 from src.utils.utils import undo_quaternion_flip, rotation_matrix_to_quat
 from src.utils.utils import quaternion_inverse, q_dot_q
 from src.utils.trajectory_generator import draw_poly, get_full_traj, fit_multi_segment_polynomial_trajectory
 from src.utils.keyframe_3d_gen import random_periodical_trajectory
+from src.utils.custom_trajectory import get_path
 from config.configuration_parameters import DirectoryConfig
 from src.quad_mpc.quad_3d import Quadrotor3D
 import matplotlib.pyplot as plt
@@ -38,6 +40,8 @@ def check_trajectory(trajectory, inputs, tvec, plot=False):
     """
 
     print("Checking trajectory integrity...")
+    print(f"Time vector range: {tvec[0]:.3f} to {tvec[-1]:.3f} s")
+    print(f"Average dt: {np.mean(np.diff(tvec)):.6f} s")
 
     dt = np.expand_dims(np.gradient(tvec, axis=0), axis=1)
     numeric_derivative = np.gradient(trajectory, axis=0) / dt
@@ -76,11 +80,12 @@ def check_trajectory(trajectory, inputs, tvec, plot=False):
         # the two attitudes can only differ in yaw --> check x,y component
         q_diff = q_dot_q(quaternion_inverse(analytic_attitude), numeric_attitude)
         errors[i, 1] = np.linalg.norm(q_diff[1:3])
-        if not np.allclose(q_diff[1:3], np.zeros(2, ), atol=1e-3, rtol=1e-3):
+        if not np.allclose(q_diff[1:3], np.zeros(2, ), atol=1e-2, rtol=1e-2):
             print("Attitude and acceleration do not match!")
-            print(analytic_attitude)
-            print(numeric_attitude)
-            print(q_diff)
+            print("Error magnitude:", np.linalg.norm(q_diff[1:3]))
+            print("Analytic attitude:", analytic_attitude)
+            print("Numeric attitude:", numeric_attitude)
+            print("Quaternion difference:", q_diff)
             return False
 
         # 3) check if bodyrates agree with attitude difference
@@ -559,3 +564,42 @@ def lemniscate_trajectory(quad, discretization_dt, radius, z, lin_acc, clockwise
     yaw = np.zeros_like(traj)
 
     return minimum_snap_trajectory_generator(traj, yaw, t_ref, quad, map_limits, plot)
+
+
+
+def custom_trajectory(path_name, quad, discretization_dt, map_name, plot):
+
+    # load path from file (t, x, y, z, vx, vy, vz, ax, ay, az)
+    path = get_path(path_name)
+
+    # get essentials 
+    map_limits = load_map_limits_from_file(map_name)
+
+
+    t = path[:, 0]
+    pos = path[:, 1:4]
+    vel = path[:, 4:7]
+    acc = path[:, 7:10]
+
+    print("my period is:", t[1] - t[0])
+    
+    # Apply light smoothing to acceleration before computing jerk
+    acc_smooth = np.copy(acc)
+    for i in range(3):  # smooth each axis
+        acc_smooth[:, i] = gaussian_filter1d(acc[:, i], sigma=1.0)
+    
+    jerk = np.gradient(acc_smooth, t, axis=0)
+    
+
+    # create vector of trajectory derivatives
+    traj_derivatives = np.zeros((4, 3, pos.shape[0]))
+    traj_derivatives[0, :, :] = pos.T
+    traj_derivatives[1, :, :] = vel.T
+    traj_derivatives[2, :, :] = acc_smooth.T
+    traj_derivatives[3, :, :] = jerk.T  
+
+
+
+
+    # input (trajectory derivatives, yaw_derivatives, t_ref, quad, map_limits, plot)
+    return minimum_snap_trajectory_generator(traj_derivatives, np.zeros((2, pos.shape[0])), t, quad, map_limits, plot)

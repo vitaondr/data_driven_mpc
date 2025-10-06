@@ -49,6 +49,7 @@ class SimpleSimConfig:
         "payload": False,                    # Payload force in the Z axis
         "motor_noise": True                  # Asymmetric voltage noise in the motors
     }
+    custom_trajectory_path = "../../data/pmm_data/sampled_trajectory.csv"  # Path to the custom trajectory CSV file
 
 
 class ModelFitConfig:
