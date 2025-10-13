@@ -296,7 +296,7 @@ def load_map_limits_from_file(map_limits):
                 limits = yaml.full_load(file)
                 map_limits = {"x": [limits["x_min"], limits["x_max"]],
                               "y": [limits["y_min"], limits["y_max"]],
-                              "z": [limits["z_min"], limits["z_max"]]}
+                              "zcheck_trajectory": [limits["z_min"], limits["z_max"]]}
                 rospy.loginfo("Using world limits: " + json.dumps(limits))
         except FileNotFoundError:
             warn_msg = "Tried to load environment limits: '%s', but the file was not found. Using default limits." \
