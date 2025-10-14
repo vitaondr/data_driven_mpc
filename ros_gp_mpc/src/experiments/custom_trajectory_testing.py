@@ -16,6 +16,10 @@ import time
 import json
 import argparse
 import numpy as np
+import pandas as pd
+import os
+import yaml
+from datetime import datetime
 from tqdm import tqdm
 from src.utils.utils import separate_variables
 from src.utils.quad_3d_opt_utils import get_reference_chunk
@@ -23,6 +27,52 @@ from src.utils.trajectories import loop_trajectory, lemniscate_trajectory, check
 from src.utils.visualization import initialize_drone_plotter, draw_drone_simulation, trajectory_tracking_results
 from src.experiments.comparative_experiment import prepare_quadrotor_mpc
 from config.configuration_parameters import SimpleSimConfig
+
+
+def jsonify(data):
+    """Convert numpy arrays to lists for JSON serialization"""
+    if isinstance(data, np.ndarray):
+        return data.tolist()
+    return data
+
+
+def create_recording_dict():
+    """Create recording dictionary to store trajectory data"""
+    return {
+        "trajectory_points": []
+    }
+
+
+def save_trajectory_yaml(recording_dict, filename):
+    """Save trajectory data to YAML file as a simple list of trajectory points"""
+    import yaml
+    
+    # Create directory if it doesn't exist
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    
+    # Create a simple list of trajectory points
+    trajectory_points = []
+    for point in recording_dict["trajectory_points"]:
+        trajectory_points.append({
+            "qw": float(point["qw"]),
+            "qx": float(point["qx"]), 
+            "qy": float(point["qy"]),
+            "qz": float(point["qz"]),
+            "x": float(point["x"]),
+            "y": float(point["y"]),
+            "z": float(point["z"])
+        })
+
+    # Check if the file already exists
+    if os.path.exists(filename):
+        print(f"Warning: The file {filename} already exists and will be overwritten.")
+    
+    # Save to YAML file as a simple list
+    with open(filename, 'w') as file:
+        yaml.dump(trajectory_points, file, default_flow_style=False, sort_keys=False)
+    
+    print(f"Trajectory data saved to: {filename}")
+    print(f"Saved {len(trajectory_points)} trajectory points")
 
 
 def main(args):
@@ -70,6 +120,19 @@ def main(args):
     else:
         raise ValueError("Unknown trajectory {}. Options are `lemniscate`, `loop`, and `custom`".format(args.trajectory))
 
+    # Initialize recording if requested
+    recording_dict = None
+    output_filename = None
+    if args.save_trajectory:
+        recording_dict = create_recording_dict()
+        
+        # Create output filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        trajectory_type = args.trajectory
+        output_dir = "data/custom_trajectories"
+        output_filename = f"{output_dir}/{trajectory_type}_tracking_{timestamp}.yaml"
+        print(f"Recording enabled. Will save to: {output_filename}")
+
     # if not check_trajectory(reference_traj, reference_u, reference_timestamps, debug_plots):
     #     return
 
@@ -103,6 +166,20 @@ def main(args):
         quad_current_state = my_quad.get_state(quaternion=True, stacked=True)
 
         quad_trajectory[current_idx, :] = np.expand_dims(quad_current_state, axis=0)
+
+        # Record trajectory data if requested (only position and quaternion)
+        if recording_dict is not None:
+            # Store actual drone trajectory point (position + quaternion)
+            point_data = {
+                "x": float(quad_current_state[0]),
+                "y": float(quad_current_state[1]),
+                "z": float(quad_current_state[2]),
+                "qw": float(quad_current_state[3]),
+                "qx": float(quad_current_state[4]),
+                "qy": float(quad_current_state[5]),
+                "qz": float(quad_current_state[6])
+            }
+            recording_dict["trajectory_points"].append(point_data)
 
         # ##### Optimization runtime (outer loop) ##### #
         # Get the chunk of trajectory required for the current optimization
@@ -153,6 +230,10 @@ def main(args):
 
     v_max_abs = np.max(np.sqrt(np.sum(reference_traj[:, 7:10] ** 2, 1)))
 
+    # Save trajectory data if recording was enabled
+    if recording_dict is not None and output_filename is not None:
+        save_trajectory_yaml(recording_dict, output_filename)
+
     print("\n:::::::::::::: SIMULATION SETUP ::::::::::::::\n")
     print("Simulation: Applied disturbances: ")
     print(json.dumps(simulation_options))
@@ -196,6 +277,11 @@ if __name__ == '__main__':
                              "time of the tracking")
 
     parser.add_argument("--trajectory_radius", type=float, default=5, help="Radius of the reference trajectories")
+    
+    parser.add_argument("--save_trajectory", dest="save_trajectory", action="store_true",
+                        help="Set to True to enable trajectory recording and saving to yaml file.")
+    parser.set_defaults(save_trajectory=False)
+    
     input_arguments = parser.parse_args()
 
     main(input_arguments)
