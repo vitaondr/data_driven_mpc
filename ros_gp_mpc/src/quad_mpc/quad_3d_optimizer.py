@@ -49,9 +49,11 @@ class Quad3DOptimizer:
 
         # Weighted squared error loss function q = (p_xyz, a_xyz, v_xyz, r_xyz), r = (u1, u2, u3, u4)
         if q_cost is None:
-            q_cost = np.array([10, 10, 10, 0.1, 0.1, 0.1, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05]) # everthing except position should be 0
+            # q_cost = np.array([10, 10, 10, 0.1, 0.1, 0.1, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05]) # everthing except position should be 0
+            q_cost = np.array([1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]) 
         if r_cost is None:
-            r_cost = np.array([0.1, 0.1, 0.1, 0.1])
+            # r_cost = np.array([0.1, 0.1, 0.1, 0.1])
+            r_cost = np.array([0, 0, 0, 0])
 
         self.T = t_horizon  # Time horizon
         self.N = n_nodes  # number of control nodes within horizon
