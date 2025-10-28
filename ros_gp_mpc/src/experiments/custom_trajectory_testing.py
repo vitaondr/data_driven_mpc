@@ -133,8 +133,8 @@ def main(args):
         output_filename = f"{output_dir}/{trajectory_type}_tracking_{timestamp}.yaml"
         print(f"Recording enabled. Will save to: {output_filename}")
 
-    # if not check_trajectory(reference_traj, reference_u, reference_timestamps, debug_plots):
-    #     return
+    if not check_trajectory(reference_traj, reference_u, reference_timestamps, debug_plots):
+        return
 
     # Set quad initial state equal to the initial reference trajectory state
     quad_current_state = reference_traj[0, :].tolist()
